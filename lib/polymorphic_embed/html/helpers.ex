@@ -107,7 +107,7 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
           name: if(array?, do: name <> "[" <> index_string <> "]", else: name),
           index: if(array?, do: i),
           errors: errors,
-          data: data,
+          data: Map.get(source_changeset.data, field),
           params: params,
           hidden: [{type_field_name, to_string(type)}],
           options: options
