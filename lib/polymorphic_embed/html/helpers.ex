@@ -55,17 +55,13 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
 
       params = Map.get(source_changeset.params || %{}, to_string(field), %{}) |> List.wrap()
 
-      struct = Ecto.Changeset.apply_changes(source_changeset)
-
       list_changeset =
         case source_changeset.changes[field] do
-          nil ->
-            type = Keyword.get(options, :polymorphic_type, get_polymorphic_type(form, field))
-            module = PolymorphicEmbed.get_polymorphic_module(struct.__struct__, field, type)
-            if module, do: [module |> struct() |> Ecto.Changeset.change()], else: []
-
           %Ecto.Changeset{} = changeset ->
             List.wrap(changeset)
+
+          nil ->
+            [source_changeset.data |> Map.get(field) |> Ecto.Changeset.change()]
         end
 
       list_changeset
