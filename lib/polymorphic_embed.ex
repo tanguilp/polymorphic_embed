@@ -8,6 +8,12 @@ defmodule PolymorphicEmbed do
   alias Ecto.Changeset
   alias PolymorphicEmbed.OptionsValidator
 
+  defstruct [
+    :cardinality,
+    :related,
+    :on_cast
+  ]
+
   defmacro polymorphic_embeds_one(field_name, opts) do
     opts =
       opts
@@ -113,7 +119,9 @@ defmodule PolymorphicEmbed do
       nilify_unlisted_types_on_load: Keyword.fetch!(opts, :nilify_unlisted_types_on_load),
       retain_unlisted_types_on_load: Keyword.fetch!(opts, :retain_unlisted_types_on_load),
       type_field_name: Keyword.fetch!(opts, :type_field_name),
-      types_metadata: types_metadata
+      types_metadata: types_metadata,
+      cardinality: :one,
+      related: nil
     }
   end
 
@@ -320,11 +328,14 @@ defmodule PolymorphicEmbed do
         embed_changeset = changeset_fun.(struct, params)
         embed_changeset = %{embed_changeset | action: action}
 
+        {:parameterized, {_, relation}} = Map.fetch!(changeset.types, field)
+        %related{} = embed_changeset.data
+        relation = %{relation | related: related}
+        changeset = %{changeset | types: Map.put(changeset.types, field, {:embed, relation})}
+
         case embed_changeset do
           %{valid?: true} = embed_changeset ->
-            embed_schema = Ecto.Changeset.apply_changes(embed_changeset)
-            embed_schema = autogenerate_id(embed_schema, embed_changeset.action)
-            Ecto.Changeset.put_change(changeset, field, embed_schema)
+            Ecto.Changeset.put_change(changeset, field, embed_changeset)
 
           %{valid?: false} = embed_changeset ->
             changeset
@@ -789,5 +800,14 @@ defmodule PolymorphicEmbed do
       nil ->
         schema
     end
+  end
+
+  alias Ecto.Changeset.Relation
+
+  @behaviour Relation
+
+  @impl Relation
+  def build(%__MODULE__{related: related}, _owner) do
+    related.__struct__()
   end
 end

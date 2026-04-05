@@ -55,29 +55,21 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
 
       params = Map.get(source_changeset.params || %{}, to_string(field), %{}) |> List.wrap()
 
-      struct = Ecto.Changeset.apply_changes(source_changeset)
+      list_changeset =
+        case source_changeset.changes[field] do
+          %Ecto.Changeset{} = changeset ->
+            List.wrap(changeset)
 
-      list_data =
-        case Map.get(struct, field) do
           nil ->
-            type = Keyword.get(options, :polymorphic_type, get_polymorphic_type(form, field))
-            module = PolymorphicEmbed.get_polymorphic_module(struct.__struct__, field, type)
-            if module, do: [struct(module)], else: []
-
-          data ->
-            List.wrap(data)
+            [source_changeset.data |> Map.get(field) |> Ecto.Changeset.change()]
         end
 
-      list_data
+      list_changeset
       |> Enum.with_index()
-      |> Enum.map(fn {data, i} ->
+      |> Enum.map(fn {changeset, i} ->
         params = Enum.at(params, i) || %{}
 
-        %Ecto.Changeset{} =
-          changeset =
-          data
-          |> Ecto.Changeset.change()
-          |> apply_action(parent_action)
+        changeset = apply_action(changeset, parent_action)
 
         errors = get_errors(changeset)
 
@@ -107,7 +99,7 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
           name: if(array?, do: name <> "[" <> index_string <> "]", else: name),
           index: if(array?, do: i),
           errors: errors,
-          data: data,
+          data: Map.get(source_changeset.data, field),
           params: params,
           hidden: [{type_field_name, to_string(type)}],
           options: options
@@ -117,8 +109,8 @@ if Code.ensure_loaded?(Phoenix.HTML) && Code.ensure_loaded?(Phoenix.HTML.Form) d
 
     # If the parent changeset had no action, we need to remove the action
     # from children changeset so we ignore all errors accordingly.
-    defp apply_action(changeset, nil), do: %{changeset | action: nil}
-    defp apply_action(changeset, _action), do: changeset
+    defp apply_action(changeset, nil), do: %Ecto.Changeset{} = %{changeset | action: nil}
+    defp apply_action(changeset, _action), do: %Ecto.Changeset{} = changeset
 
     defp get_errors(%{action: nil}), do: []
     defp get_errors(%{action: :ignore}), do: []
